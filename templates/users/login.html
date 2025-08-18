@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Giriş Yap - Diyet Takip{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card">
+                <div class="card-header text-center bg-primary text-white">
+                    <h3 class="mb-0"><i class="bi bi-box-arrow-in-right"></i> Giriş Yap</h3>
+                </div>
+                <div class="card-body">
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+
+                    <form method="POST" novalidate>
+                        {% csrf_token %}
+
+                        <div class="mb-3">
+                            <label class="form-label" for="id_username">E-posta</label>
+                            {{ form.username }}
+                            {% if form.username.errors %}
+                                <div class="invalid-feedback d-block">{{ form.username.errors|join:', ' }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label" for="id_password">Şifre</label>
+                            <div class="input-group">
+                                {{ form.password }}
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                            {% if form.password.errors %}
+                                <div class="invalid-feedback d-block">{{ form.password.errors|join:', ' }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-box-arrow-in-right"></i> Giriş Yap
+                            </button>
+                        </div>
+                    </form>
+
+                    <hr class="my-4">
+                    <p class="mb-0 text-center">
+                        Hesabın yok mu? <a href="{% url 'register' %}">Kayıt ol</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const toggle = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('id_password');
+    if (toggle && passwordInput) {
+        toggle.addEventListener('click', function () {
+            const isText = passwordInput.getAttribute('type') === 'text';
+            passwordInput.setAttribute('type', isText ? 'password' : 'text');
+            this.innerHTML = isText ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
+        });
+    }
+});
+</script>
+{% endblock %}

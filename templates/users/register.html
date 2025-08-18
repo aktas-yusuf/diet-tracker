@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+
+{% block title %}Kayıt Ol - Diyet Takip{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-7">
+            <div class="card">
+                <div class="card-header text-center bg-success text-white">
+                    <h3 class="mb-0"><i class="bi bi-person-plus"></i> Kayıt Ol</h3>
+                </div>
+                <div class="card-body">
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+
+                    <form method="POST" novalidate>
+                        {% csrf_token %}
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_username">Kullanıcı Adı</label>
+                                {{ form.username }}
+                                {% if form.username.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.username.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_email">E-posta</label>
+                                {{ form.email }}
+                                {% if form.email.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.email.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label" for="id_age">Yaş</label>
+                                {{ form.age }}
+                                {% if form.age.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.age.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label" for="id_height">Boy (cm)</label>
+                                {{ form.height }}
+                                {% if form.height.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.height.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label" for="id_weight">Kilo (kg)</label>
+                                {{ form.weight }}
+                                {% if form.weight.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.weight.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_gender">Cinsiyet</label>
+                                <select name="gender" id="id_gender" class="form-select">
+                                    {% for val,label in form.gender.field.choices %}
+                                        <option value="{{ val }}" {% if form.gender.value == val %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.gender.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.gender.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_activity_level">Aktivite Seviyesi</label>
+                                <select name="activity_level" id="id_activity_level" class="form-select">
+                                    {% for val,label in form.activity_level.field.choices %}
+                                        <option value="{{ val }}" {% if form.activity_level.value == val %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                                {% if form.activity_level.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.activity_level.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_password1">Şifre</label>
+                                <div class="input-group">
+                                    {{ form.password1 }}
+                                    <button class="btn btn-outline-secondary" type="button" id="togglePassword1">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                                {% if form.password1.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.password1.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="col-md-6">
+                                <label class="form-label" for="id_password2">Şifre (Tekrar)</label>
+                                <div class="input-group">
+                                    {{ form.password2 }}
+                                    <button class="btn btn-outline-secondary" type="button" id="togglePassword2">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                                {% if form.password2.errors %}
+                                    <div class="invalid-feedback d-block">{{ form.password2.errors|join:', ' }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-person-plus"></i> Kayıt Ol
+                            </button>
+                        </div>
+                    </form>
+
+                    <hr class="my-4">
+                    <p class="mb-0 text-center">
+                        Zaten hesabın var mı? <a href="{% url 'login' %}">Giriş yap</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    function setupToggle(btnId, inputId) {
+        const btn = document.getElementById(btnId);
+        const input = document.getElementById(inputId);
+        if (btn && input) {
+            btn.addEventListener('click', function () {
+                const isText = input.getAttribute('type') === 'text';
+                input.setAttribute('type', isText ? 'password' : 'text');
+                this.innerHTML = isText ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
+            });
+        }
+    }
+    setupToggle('togglePassword1', 'id_password1');
+    setupToggle('togglePassword2', 'id_password2');
+});
+</script>
+{% endblock %}
