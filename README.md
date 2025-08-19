@@ -1,41 +1,37 @@
 # Diet Tracker
 
-A Django-based web application for tracking diet and nutrition.
+Django tabanlı diyet takip ve öneri uygulaması.
 
-## Features
+## Özellikler
 
-- User registration and authentication
-- Diet recommendations
-- User profiles
-- SQLite database
+- Kullanıcı kayıt ve giriş sistemi
+- Diyet önerileri
+- Kullanıcı profilleri
+- SQLite veritabanı
 
-## Installation
+## Kurulum
 
-1. Clone the repository:
+1. Repository'yi klonlayın:
 ```bash
-git clone https://github.com/KULLANICI_ADINIZ/diet-tracker.git
+git clone https://github.com/aktayusuf/diet-tracker.git
 cd diet-tracker
 ```
 
-2. Install dependencies:
+2. Bağımlılıkları yükleyin:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Run migrations:
+3. Migrasyonları çalıştırın:
 ```bash
 python manage.py migrate
 ```
 
-4. Start the development server:
+4. Sunucuyu başlatın:
 ```bash
 python manage.py runserver
 ```
 
-## Usage
+## Kullanım
 
-Open your browser and navigate to `http://localhost:8000`
-
-## Contributing
-
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
+Tarayıcınızda `http://localhost:8000` adresine gidin.
