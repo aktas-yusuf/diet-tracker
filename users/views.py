@@ -3,6 +3,7 @@ from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from .forms import CustomUserCreationForm, CustomAuthenticationForm
+from recommendations.constants import MSG_PROFILE_UPDATED, MSG_INVALID_VALUE, MSG_SYSTEM_ERROR
 
 def register_view(request):
     if request.method == "POST":
@@ -37,23 +38,31 @@ def logout_view(request):
 
 @login_required
 def profile_view(request):
-    """Kullanıcı profil sayfası"""
     user = request.user
     
     if request.method == "POST":
-    
-        user.age = request.POST.get('age') or None
-        user.weight = request.POST.get('weight') or None
-        user.height = request.POST.get('height') or None
+        # Form verilerini al ve parse et
+        age_str = request.POST.get('age', '').strip()
+        user.age = int(age_str) if age_str and age_str.isdigit() else None
+
+        weight_str = request.POST.get('weight', '').strip()
+        user.weight = float(weight_str) if weight_str and weight_str.replace('.', '', 1).isdigit() else None
+
+        height_str = request.POST.get('height', '').strip()
+        user.height = float(height_str) if height_str and height_str.replace('.', '', 1).isdigit() else None
+
         user.gender = request.POST.get('gender') or None
         user.activity_level = request.POST.get('activity_level') or None
-        
+
         try:
             user.save()
-            messages.success(request, "Profil bilgileriniz güncellendi!")
+            user.refresh_from_db()
+            messages.success(request, MSG_PROFILE_UPDATED)
             return redirect('profile')
-        except Exception as e:
-            messages.error(request, f"Güncelleme sırasında hata oluştu: {str(e)}")
-    
+        except (ValueError, TypeError):
+            messages.error(request, MSG_INVALID_VALUE)
+        except Exception:
+            messages.error(request, MSG_SYSTEM_ERROR)
+
     return render(request, 'users/profile.html', {'user': user})
 

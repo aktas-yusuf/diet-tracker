@@ -1,366 +1,227 @@
 import requests
-import json
 import re
+import random
 from django.conf import settings
 from django.core.cache import cache
 
+# Kalori hesaplama
 def calculate_daily_calorie_need(age, weight, height, gender, activity_level):
-    gender_normalized = None
-    if isinstance(gender, str):
-        g = gender.strip().lower()
-        if g in ['m', 'male', 'erkek']:
-            gender_normalized = 'male'
-        elif g in ['f', 'female', 'kadın', 'kadin']:
-            gender_normalized = 'female'
-        else:
-            gender_normalized = 'other'
-    else:
-        gender_normalized = 'other'
-
-    # Mifflin-St Jeor formülü (BMR hesaplama)
-    if gender_normalized == 'male':
+    """Mifflin-St Jeor formülü ile günlük kalori ihtiyacını hesaplar"""
+    # Cinsiyet kontrolü
+    gender_str = str(gender).strip().upper()
+    is_male = gender_str in ['M', 'MALE', 'ERKEK']
+    is_female = gender_str in ['F', 'FEMALE', 'KADIN', 'KADIN']
+    
+    # BMR hesaplama
+    if is_male:
         bmr = 10 * weight + 6.25 * height - 5 * age + 5
     else:
         bmr = 10 * weight + 6.25 * height - 5 * age - 161
-
-    # Aktivite seviyesi çarpanları
-    activity_multipliers = {
-        'low': 1.2,      
-        'medium': 1.55,  
-        'high': 1.9      
-    }
-
-    multiplier = activity_multipliers.get(activity_level, 1.2)
-    daily_calories = bmr * multiplier
     
-    return round(daily_calories, 0)
+    # Aktivite çarpanları
+    multipliers = {'low': 1.2, 'medium': 1.55, 'high': 1.9}
+    multiplier = multipliers.get(activity_level, 1.2)
+    
+    return round(bmr * multiplier, 0)
 
 
+# Cache yardımcı fonksiyonu
 def clean_cache_key(key):
-    
     key = re.sub(r'[^a-zA-Z0-9_]', '_', key)
-    key = re.sub(r'_+', '_', key)
-    return key
+    return re.sub(r'_+', '_', key)
 
 
+# Veritabanı kaydetme
 def save_api_meal_to_db(meal_data):
+    """API'den gelen yemeği veritabanına kaydeder"""
     from .models import RecommendedMeal
     
     try:
-        
-        existing_meal = RecommendedMeal.objects.filter(name=meal_data['name']).first()
-        if existing_meal:
-            return existing_meal
-        
-        
-        new_meal = RecommendedMeal.objects.create(
+        meal, created = RecommendedMeal.objects.get_or_create(
             name=meal_data['name'],
-            calories=meal_data['calories'],
-            protein=meal_data['protein'],
-            carbs=meal_data['carbs'],
-            fat=meal_data['fat']
+            defaults={
+                'calories': meal_data['calories'],
+                'protein': meal_data['protein'],
+                'carbs': meal_data['carbs'],
+                'fat': meal_data['fat']
+            }
         )
-        return new_meal
+        return meal
     except Exception as e:
         print(f"Yemek kaydetme hatası: {e}")
         return None
 
 
+# API'den yemek bilgisi çekme
+def _parse_food_from_api(food_data):
+    """API'den gelen yemek verisini parse eder"""
+    food = food_data.get('food', {})
+    nutrients = food.get('nutrients', {})
+    
+    # API 100g başına kalori veriyor, porsiyon için 250g varsayıyoruz
+    calories_per_100g = nutrients.get('ENERC_KCAL', 0)
+    portion_multiplier = 2.5
+    
+    return {
+        'name': food.get('label', 'Bilinmeyen'),
+        'calories': round(calories_per_100g * portion_multiplier, 1),
+        'protein': round(nutrients.get('PROCNT', 0) * portion_multiplier, 1),
+        'carbs': round(nutrients.get('CHOCDF', 0) * portion_multiplier, 1),
+        'fat': round(nutrients.get('FAT', 0) * portion_multiplier, 1),
+        'fiber': round(nutrients.get('FIBTG', 0) * portion_multiplier, 1),
+        'source': 'API'
+    }
+
+
 def search_food_api(query, min_calories=None, max_calories=None):
-    """Edamam Food Database API'den yemek arama"""
-    from django.conf import settings
-    
-    
+    """Edamam API'den yemek arama"""
     APP_ID = getattr(settings, 'EDAMAM_APP_ID', '')
     APP_KEY = getattr(settings, 'EDAMAM_APP_KEY', '')
     
-    
-    if not APP_ID or not APP_KEY or APP_ID == 'your_app_id_here':
+    if not APP_ID or not APP_KEY:
+        print(f"[LOG] Edamam API anahtarı eksik. APP_ID: {APP_ID}, APP_KEY: {APP_KEY}")
         return []
     
-    
-    cache_key = clean_cache_key(f"food_search_{query}_{min_calories}_{max_calories}")
-    cached_result = cache.get(cache_key)
-    
-    if cached_result:
-        return cached_result
+    # Cache kontrolü
+    cache_key = clean_cache_key(f"food_{query}_{min_calories}_{max_calories}")
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
     
     try:
-        
         url = "https://api.edamam.com/api/food-database/v2/parser"
-        
-        params = {
-            'app_id': APP_ID,
-            'app_key': APP_KEY,
-            'ingr': query,
-            'lang': 'en'  # İngilizce sonuçlar daha iyi
-        }
-        
+        params = {'app_id': APP_ID, 'app_key': APP_KEY, 'ingr': query, 'lang': 'en'}
+        print(f"[LOG] API çağrısı başlatılıyor: {url} params={params}")
         response = requests.get(url, params=params, timeout=10)
-        
-        if response.status_code == 401:
+        print(f"[LOG] API yanıt kodu: {response.status_code}")
+        if response.status_code != 200:
+            print(f"[LOG] API başarısız yanıt: {response.text}")
             return []
-        elif response.status_code != 200:
-            return []
-        
         data = response.json()
         foods = []
-        
-        if 'hints' in data:
-            for hint in data['hints']:
-                food = hint.get('food', {})
-                nutrients = food.get('nutrients', {})
-                
-                # Kalori kontrolü
-                calories = nutrients.get('ENERC_KCAL', 0)
-                if min_calories and calories < min_calories:
-                    continue
-                if max_calories and calories > max_calories:
-                    continue
-                
-                food_data = {
-                    'name': food.get('label', 'Bilinmeyen'),
-                    'calories': calories,
-                    'protein': nutrients.get('PROCNT', 0),
-                    'carbs': nutrients.get('CHOCDF', 0),
-                    'fat': nutrients.get('FAT', 0),
-                    'fiber': nutrients.get('FIBTG', 0),
-                    'source': 'API'
-                }
-                
-                
-                db_meal = save_api_meal_to_db(food_data)
-                if db_meal:
-                    food_data['db_id'] = db_meal.id
-                
-                foods.append(food_data)
-        
-        
+        for hint in data.get('hints', []):
+            food_data = _parse_food_from_api(hint)
+            calories = food_data['calories']
+            # Kalori filtresi
+            if min_calories and calories < min_calories * 0.5:
+                continue
+            if max_calories and calories > max_calories * 1.5:
+                continue
+            save_api_meal_to_db(food_data)
+            foods.append(food_data)
         cache.set(cache_key, foods, 3600)
+        print(f"[LOG] API'den {len(foods)} yemek döndü.")
         return foods
-        
-    except requests.RequestException as e:
+    except requests.Timeout as e:
+        print(f"[LOG] API timeout hatası ({query}): {str(e)}")
         return []
     except Exception as e:
+        print(f"[LOG] API genel hatası ({query}): {str(e)}")
         return []
-
-
-def get_turkish_food_suggestions(meal_type, target_calories):
-    """Türk yemekleri için API arama terimleri (İngilizce öncelikli)"""
-    turkish_foods = {
-        'breakfast': [
-            
-            'omelet', 'cheese', 'olive', 'honey', 'jam', 'butter', 'milk', 'tea', 'bread', 'yogurt',
-            
-            'menemen', 'omlet', 'beyaz peynir', 'zeytin', 'bal', 'reçel', 'tereyağı', 'süt', 'çay', 'simit'
-        ],
-        'lunch': [
-            
-            'chicken', 'beef', 'rice', 'bulgur', 'lentil soup', 'tomato soup', 'salad', 'yogurt', 'pasta',
-            
-            'tavuk sote', 'kıyma', 'pirinç pilavı', 'bulgur pilavı', 'mercimek çorbası', 'domates çorbası', 'cacık'
-        ],
-        'dinner': [
-            
-            'grilled meatball', 'grilled fish', 'chicken kebab', 'eggplant', 'beans', 'chickpeas', 'pasta', 'spinach', 'zucchini',
-            
-            'ızgara köfte', 'balık ızgara', 'tavuk şiş', 'karnıyarık', 'imambayıldı', 'fasulye', 'nohut', 'ıspanak', 'kabak'
-        ],
-        'snack': [
-           
-            'apple', 'banana', 'orange', 'pear', 'strawberry', 'grape', 'cherry', 'almond', 'walnut', 'hazelnut',
-            
-            'elma', 'muz', 'portakal', 'armut', 'çilek', 'üzüm', 'kiraz', 'badem', 'ceviz', 'fındık'
-        ]
-    }
-    
-    return turkish_foods.get(meal_type, [])
 
 
 def get_meal_recommendations(daily_calories, user=None, meal_type=None):
-    """Günlük kalori ihtiyacına göre yemek önerileri getirir (Sadece API)"""
+    """Öğün için yemek önerileri getirir"""
+    # Öğün kalori hedefi
+    meal_percentages = {
+        'breakfast': 0.25,
+        'lunch': 0.35,
+        'dinner': 0.30,
+        'snack': 0.10
+    }
+    meal_calories = daily_calories * meal_percentages.get(meal_type, 0.25)
+    # Yüksek aktivite seviyesinde öğün başına kalori üst limiti koy
+    MAX_MEAL_CAL = 1000  # API'nin döndürebileceği makul üst limit
+    if meal_calories > MAX_MEAL_CAL:
+        meal_calories = MAX_MEAL_CAL
+    # Kalori aralığı (%50 tolerans)
+    min_cal = meal_calories * 0.5
+    max_cal = meal_calories * 1.5
+    if max_cal > 1200:
+        max_cal = 1200
     
-    api_foods = get_meal_recommendations_api(daily_calories, user, meal_type)
+    # Genel arama terimleri
+    search_queries = ['food', 'meal', 'dish', 'chicken', 'rice', 'bread']
+    if meal_type == 'snack':
+        search_queries = ['fruit', 'snack', 'nut', 'apple', 'banana']
     
-    
-    if api_foods:
-        return api_foods
-    
-    
-    return []
-
-
-def get_meal_recommendations_api(daily_calories, user=None, meal_type=None):
-    """API'den yemek önerileri getirir (Sadece API)"""
-    import random
-    
-    
-    if meal_type == 'breakfast':
-        meal_calories = daily_calories * 0.25
-    elif meal_type == 'lunch':
-        meal_calories = daily_calories * 0.35
-    elif meal_type == 'dinner':
-        meal_calories = daily_calories * 0.30
-    elif meal_type == 'snack':
-        meal_calories = daily_calories * 0.10
-    else:
-        meal_calories = daily_calories / 4
-    
-    
-    min_calories = meal_calories * 0.8  # %20 tolerans
-    max_calories = meal_calories * 1.2
-    
-    
-    food_suggestions = get_turkish_food_suggestions(meal_type, meal_calories)
-    
+    # Yemek arama
     all_foods = []
-    
-    
-    for food_query in food_suggestions[:6]:
-        foods = search_food_api(food_query, min_calories, max_calories)
+    for query in search_queries[:6]:
+        foods = search_food_api(query, min_cal, max_cal)
         all_foods.extend(foods)
-        
-       
         if len(all_foods) >= 2:
             break
     
+    # Filtre olmadan tekrar dene
+    if len(all_foods) < 2:
+        for query in search_queries[:6]:
+            foods = search_food_api(query, None, None)
+            all_foods.extend(foods)
+            if len(all_foods) >= 4:
+                break
     
+    # Kalori aralığına uygun olanları seç
+    if len(all_foods) > 0:
+        filtered = [f for f in all_foods if min_cal <= f.get('calories', 0) <= max_cal]
+        if len(filtered) >= 2:
+            all_foods = filtered
+        else:
+            # En yakın kalorili olanları seç
+            all_foods.sort(key=lambda x: abs(x.get('calories', 0) - meal_calories))
+    
+    # Rastgele 2 yemek seç
     if len(all_foods) > 2:
         if user and user.age:
-            random.seed(user.age + user.weight + user.height)
+            meal_type_hash = {'breakfast': 1, 'lunch': 2, 'dinner': 3, 'snack': 4}.get(meal_type, 0)
+            random.seed(user.age + int(user.weight or 0) + int(user.height or 0) + meal_type_hash)
         random.shuffle(all_foods)
         all_foods = all_foods[:2]
     
     return all_foods
 
 
-def get_meal_recommendations_with_limit(daily_calories, user=None, meal_type=None, max_meal_calories=None):
-    """Kalori sınırı ile yemek önerileri getirir (Sadece API)"""
-    
-    api_foods = get_meal_recommendations_api_with_limit(daily_calories, user, meal_type, max_meal_calories)
-    
-    
-    if api_foods:
-        return api_foods
-    
-    
-    return []
 
 
-def get_meal_recommendations_api_with_limit(daily_calories, user=None, meal_type=None, max_meal_calories=None):
-    """API'den yemek önerileri getirir (Kalori Sınırlı, Sadece API)"""
-    import random
+# BMI hesaplama
+def calculate_bmi(weight, height):
+    """BMI (Body Mass Index) hesaplar ve kategori döndürür"""
+    if not weight or not height or height <= 0:
+        return 0, "Hesaplanamadı"
     
+    bmi = weight / ((height / 100) ** 2)
     
-    if meal_type == 'breakfast':
-        meal_calories = daily_calories * 0.25
-    elif meal_type == 'lunch':
-        meal_calories = daily_calories * 0.35
-    elif meal_type == 'dinner':
-        meal_calories = daily_calories * 0.30
-    elif meal_type == 'snack':
-        meal_calories = daily_calories * 0.10
+    if bmi < 18.5:
+        category = "Zayıf"
+    elif bmi < 25:
+        category = "Normal"
+    elif bmi < 30:
+        category = "Fazla Kilolu"
     else:
-        meal_calories = daily_calories / 4
+        category = "Obez"
     
-    
-    if max_meal_calories:
-        meal_calories = min(meal_calories, max_meal_calories)
-    
-    
-    min_calories = meal_calories * 0.9  # %10 tolerans
-    max_calories = meal_calories * 1.1
-    
-    
-    food_suggestions = get_turkish_food_suggestions(meal_type, meal_calories)
-    
-    all_foods = []
-    
-    
-    for food_query in food_suggestions[:8]:
-        foods = search_food_api(food_query, min_calories, max_calories)
-        all_foods.extend(foods)
-        
-        
-        if len(all_foods) >= 2:
-            break
-    
-    
-    if len(all_foods) > 2:
-        if user and user.age:
-            random.seed(user.age + user.weight + user.height)
-        random.shuffle(all_foods)
-        all_foods = all_foods[:2]
-    
-    return all_foods
+    return round(bmi, 1), category
 
 
-def generate_meal_plan(user):
-    """Kullanıcı için günlük yemek planı oluşturur (Sadece API)"""
-    
-    
-    if not all([user.age, user.weight, user.height, user.gender, user.activity_level]):
-        return [], 0, 0
-    
-    
-    daily_calories = calculate_daily_calorie_need(
-        user.age, user.weight, user.height, user.gender, user.activity_level
-    )
-    
-    print(f"Günlük kalori hedefi: {daily_calories} kcal")
-    
-    
-    breakfast_target = daily_calories * 0.25  # %25
-    lunch_target = daily_calories * 0.35      # %35  
-    dinner_target = daily_calories * 0.30     # %30
-    snack_target = daily_calories * 0.10      # %10
-    
-    print(f"Öğün hedefleri - Kahvaltı: {breakfast_target:.0f}, Öğle: {lunch_target:.0f}, Akşam: {dinner_target:.0f}, Atıştırmalık: {snack_target:.0f}")
-    
-    
-    breakfast_meals = get_meal_recommendations(daily_calories, user, 'breakfast')
-    lunch_meals = get_meal_recommendations(daily_calories, user, 'lunch')
-    dinner_meals = get_meal_recommendations(daily_calories, user, 'dinner')
-    snack_meals = get_meal_recommendations(daily_calories, user, 'snack')
-    
-    
-    all_meals = breakfast_meals + lunch_meals + dinner_meals + snack_meals
-    
-    
-    total_calories = sum(meal['calories'] if isinstance(meal, dict) else meal.calories for meal in all_meals)
-    
-    print(f"Kahvaltı: {len(breakfast_meals)} yemek, {sum(m['calories'] if isinstance(m, dict) else m.calories for m in breakfast_meals):.0f} kcal")
-    print(f"Öğle: {len(lunch_meals)} yemek, {sum(m['calories'] if isinstance(m, dict) else m.calories for m in lunch_meals):.0f} kcal")
-    print(f"Akşam: {len(dinner_meals)} yemek, {sum(m['calories'] if isinstance(m, dict) else m.calories for m in dinner_meals):.0f} kcal")
-    print(f"Atıştırmalık: {len(snack_meals)} yemek, {sum(m['calories'] if isinstance(m, dict) else m.calories for m in snack_meals):.0f} kcal")
-    print(f"Toplam önerilen: {total_calories:.0f} kcal")
-    print(f"Kalori farkı: {daily_calories - total_calories:.0f} kcal")
-
-    return all_meals, total_calories, daily_calories
-
-
+# Beslenme tavsiyeleri
 def get_nutrition_advice(user, daily_calories):
     """Kullanıcıya beslenme tavsiyesi verir"""
     advice = []
     
-    
     if user.age and user.age > 50:
         advice.append("50 yaş üstü için kalsiyum ve D vitamini açısından zengin besinler tüketin.")
     
-    
-    if user.weight and user.height:
-        bmi = user.weight / ((user.height / 100) ** 2)
+    if user.weight and user.height and user.height > 0:
+        bmi, _ = calculate_bmi(user.weight, user.height)
         if bmi > 25:
             advice.append("Kilo vermek için kalori açığı oluşturun ve düzenli egzersiz yapın.")
         elif bmi < 18.5:
             advice.append("Kilo almak için kalori fazlası oluşturun ve protein açısından zengin besinler tüketin.")
     
-    
     if user.activity_level == 'low':
         advice.append("Hareketsiz yaşam tarzı için günlük 30 dakika yürüyüş yapmayı hedefleyin.")
     elif user.activity_level == 'high':
         advice.append("Yoğun aktivite için yeterli protein ve karbonhidrat alımına dikkat edin.")
-    
     
     advice.append("Günde en az 2-2.5 litre su için.")
     advice.append("Meyve ve sebze tüketimini artırın.")
@@ -369,25 +230,25 @@ def get_nutrition_advice(user, daily_calories):
     return advice
 
 
+# Makro besin oranları
 def calculate_macro_ratios(meals):
     """Yemeklerin makro besin oranlarını hesaplar"""
-    total_calories = sum(meal['calories'] if isinstance(meal, dict) else meal.calories for meal in meals)
-    total_protein = sum(meal['protein'] if isinstance(meal, dict) else meal.protein for meal in meals)
-    total_carbs = sum(meal['carbs'] if isinstance(meal, dict) else meal.carbs for meal in meals)
-    total_fat = sum(meal['fat'] if isinstance(meal, dict) else meal.fat for meal in meals)
+    total_cal = sum(m.get('calories', 0) if isinstance(m, dict) else m.calories for m in meals)
+    total_protein = sum(m.get('protein', 0) if isinstance(m, dict) else m.protein for m in meals)
+    total_carbs = sum(m.get('carbs', 0) if isinstance(m, dict) else m.carbs for m in meals)
+    total_fat = sum(m.get('fat', 0) if isinstance(m, dict) else m.fat for m in meals)
     
-    if total_calories > 0:
-        protein_ratio = (total_protein * 4 / total_calories) * 100
-        carbs_ratio = (total_carbs * 4 / total_calories) * 100
-        fat_ratio = (total_fat * 9 / total_calories) * 100
-    else:
-        protein_ratio = carbs_ratio = fat_ratio = 0
+    if total_cal > 0:
+        return {
+            'protein_ratio': round((total_protein * 4 / total_cal) * 100, 1),
+            'carbs_ratio': round((total_carbs * 4 / total_cal) * 100, 1),
+            'fat_ratio': round((total_fat * 9 / total_cal) * 100, 1),
+            'total_protein': round(total_protein, 1),
+            'total_carbs': round(total_carbs, 1),
+            'total_fat': round(total_fat, 1)
+        }
     
     return {
-        'protein_ratio': round(protein_ratio, 1),
-        'carbs_ratio': round(carbs_ratio, 1),
-        'fat_ratio': round(fat_ratio, 1),
-        'total_protein': round(total_protein, 1),
-        'total_carbs': round(total_carbs, 1),
-        'total_fat': round(total_fat, 1)
+        'protein_ratio': 0, 'carbs_ratio': 0, 'fat_ratio': 0,
+        'total_protein': 0, 'total_carbs': 0, 'total_fat': 0
     }

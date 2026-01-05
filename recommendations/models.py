@@ -11,19 +11,10 @@ class RecommendedMeal(models.Model):
     def __str__(self):
         return self.name
 
-class RecommendedExercise(models.Model):
-    name = models.CharField(max_length=100)
-    calories_burned = models.FloatField()
-    difficulty = models.CharField(max_length=50)
-
-    def __str__(self):
-        return self.name
-
 class Recommendation(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     date = models.DateField(auto_now_add=True)
     recommended_meals = models.ManyToManyField(RecommendedMeal)
-    recommended_exercises = models.ManyToManyField(RecommendedExercise)
     total_calories = models.FloatField(default=0)
 
     def __str__(self):

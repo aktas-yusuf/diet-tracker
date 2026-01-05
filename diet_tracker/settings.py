@@ -141,4 +141,4 @@ CACHES = {
 }
 
 # Requests timeout
-REQUESTS_TIMEOUT = 10
+REQUESTS_TIMEOUT = 60

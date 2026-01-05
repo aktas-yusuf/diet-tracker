@@ -12,123 +12,145 @@
                     <i class="bi bi-heart-pulse"></i> Hoş Geldiniz!
                 </h1>
                 {% if user.is_authenticated %}
-                    <p class="lead">Merhaba {{ user.username }}, sağlıklı yaşam yolculuğunuza devam edin!</p>
+                <p class="lead">Merhaba {{ user.username }}, sağlıklı yaşam yolculuğunuza devam edin!</p>
                 {% else %}
-                    <p class="lead">Sağlıklı yaşam için kişiselleştirilmiş yemek önerileri alın!</p>
+                <p class="lead">Sağlıklı yaşam için kişiselleştirilmiş yemek önerileri alın!</p>
                 {% endif %}
             </div>
 
             {% if user.is_authenticated %}
-                <!-- Kullanıcı Dashboard -->
-                <div class="row">
-                    <div class="col-md-4 mb-4">
-                        <div class="card text-center h-100">
-                            <div class="card-body">
-                                <i class="bi bi-lightbulb display-4 text-warning"></i>
-                                <h5 class="card-title mt-3">Yemek Önerileri</h5>
-                                <p class="card-text">Kişisel bilgilerinize göre özel yemek önerileri alın.</p>
-                                <a href="{% url 'recommendation' %}" class="btn btn-warning">
-                                    <i class="bi bi-arrow-right"></i> Önerileri Görüntüle
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-4 mb-4">
-                        <div class="card text-center h-100">
-                            <div class="card-body">
-                                <i class="bi bi-person-circle display-4 text-info"></i>
-                                <h5 class="card-title mt-3">Profil Yönetimi</h5>
-                                <p class="card-text">Kişisel bilgilerinizi güncelleyin ve kalori ihtiyacınızı hesaplayın.</p>
-                                <a href="{% url 'profile' %}" class="btn btn-info">
-                                    <i class="bi bi-arrow-right"></i> Profili Düzenle
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-4 mb-4">
-                        <div class="card text-center h-100">
-                            <div class="card-body">
-                                <i class="bi bi-graph-up display-4 text-success"></i>
-                                <h5 class="card-title mt-3">İlerleme Takibi</h5>
-                                <p class="card-text">Günlük yemek ve egzersiz kayıtlarınızı takip edin.</p>
-                                <button class="btn btn-success" disabled>
-                                    <i class="bi bi-clock"></i> Yakında
-                                </button>
-                            </div>
+            <!-- Kullanıcı Dashboard -->
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <i class="bi bi-lightbulb display-4 text-warning"></i>
+                            <h5 class="card-title mt-3">Yemek Önerileri</h5>
+                            <p class="card-text">Kişisel bilgilerinize göre özel yemek önerileri alın.</p>
+                            <a href="{% url 'recommendation' %}" class="btn btn-warning">
+                                <i class="bi bi-arrow-right"></i> Önerileri Görüntüle
+                            </a>
                         </div>
                     </div>
                 </div>
 
-                <!-- Profil Bilgisi Uyarısı -->
-                {% if not user.age or not user.weight or not user.height or not user.gender or not user.activity_level %}
-                <div class="alert alert-warning mt-4">
-                    <h5><i class="bi bi-exclamation-triangle"></i> Profil Bilgilerinizi Tamamlayın</h5>
-                    <p>Yemek önerileri alabilmek için lütfen profil bilgilerinizi doldurun.</p>
-                    <a href="{% url 'profile' %}" class="btn btn-warning">
-                        <i class="bi bi-person-plus"></i> Profili Tamamla
-                    </a>
+                <div class="col-md-4 mb-4">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <i class="bi bi-person-circle display-4 text-info"></i>
+                            <h5 class="card-title mt-3">Profil Yönetimi</h5>
+                            <p class="card-text">Kişisel bilgilerinizi güncelleyin ve kalori ihtiyacınızı hesaplayın.
+                            </p>
+                            <a href="{% url 'profile' %}" class="btn btn-info">
+                                <i class="bi bi-arrow-right"></i> Profili Düzenle
+                            </a>
+                        </div>
+                    </div>
                 </div>
-                {% endif %}
+
+                <div class="col-md-4 mb-4">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <i class="bi bi-graph-up display-4 text-success"></i>
+                            <h5 class="card-title mt-3">İlerleme Takibi</h5>
+                            <p class="card-text">Günlük yemek ve egzersiz kayıtlarınızı takip edin.</p>
+                            <button class="btn btn-success" disabled>
+                                <i class="bi bi-clock"></i> Yakında
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Profil Bilgisi Uyarısı ve Uç Değer Senaryoları -->
+            {% if not user.age or not user.weight or not user.height or not user.gender or not user.activity_level %}
+            <div class="alert alert-warning mt-4">
+                <h5><i class="bi bi-exclamation-triangle"></i> Profil Bilgilerinizi Tamamlayın</h5>
+                <p>Yemek önerileri alabilmek için lütfen profil bilgilerinizi doldurun.</p>
+                <a href="{% url 'profile' %}" class="btn btn-warning">
+                    <i class="bi bi-person-plus"></i> Profili Tamamla
+                </a>
+            </div>
+            {% else %}
+            {% if user.weight and user.weight > 130 %}
+            <div class="alert alert-danger mt-4">
+                <h5><i class="bi bi-emoji-frown"></i> Kilo Bilgisi Uyarısı</h5>
+                <p>Kilonuz çok yüksek görünüyor. Lütfen doğru girdiğinizden emin olun veya doktorunuza danışın.</p>
+            </div>
+            {% endif %}
+            {% if user.age and user.age > 65 %}
+            <div class="alert alert-info mt-4">
+                <h5><i class="bi bi-emoji-neutral"></i> Yaş Bilgisi Uyarısı</h5>
+                <p>Yaşınız 65'in üzerinde. Beslenme önerileri için doktorunuza danışmanız faydalı olabilir.</p>
+            </div>
+            {% endif %}
+            {% if user.activity_level == 'high' %}
+            <div class="alert alert-warning mt-4">
+                <h5><i class="bi bi-lightning"></i> Aktivite Seviyesi Uyarısı</h5>
+                <p>Aktivite seviyeniz 'Yüksek' olarak seçili. API'den öneri alınamıyorsa, 'Orta' seviyeyi
+                    deneyebilirsiniz.</p>
+            </div>
+            {% endif %}
+            {% endif %}
 
             {% else %}
-                <!-- Misafir Kullanıcı -->
-                <div class="row">
-                    <div class="col-md-6 mb-4">
-                        <div class="card text-center h-100">
-                            <div class="card-body">
-                                <i class="bi bi-person-plus display-4 text-primary"></i>
-                                <h5 class="card-title mt-3">Hemen Başlayın</h5>
-                                <p class="card-text">Ücretsiz hesap oluşturun ve kişiselleştirilmiş yemek önerileri alın.</p>
-                                <a href="{% url 'register' %}" class="btn btn-primary">
-                                    <i class="bi bi-arrow-right"></i> Kayıt Ol
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-md-6 mb-4">
-                        <div class="card text-center h-100">
-                            <div class="card-body">
-                                <i class="bi bi-box-arrow-in-right display-4 text-success"></i>
-                                <h5 class="card-title mt-3">Zaten Üye misiniz?</h5>
-                                <p class="card-text">Hesabınıza giriş yapın ve diyet takibinize devam edin.</p>
-                                <a href="{% url 'login' %}" class="btn btn-success">
-                                    <i class="bi bi-arrow-right"></i> Giriş Yap
-                                </a>
-                            </div>
+            <!-- Misafir Kullanıcı -->
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <i class="bi bi-person-plus display-4 text-primary"></i>
+                            <h5 class="card-title mt-3">Hemen Başlayın</h5>
+                            <p class="card-text">Ücretsiz hesap oluşturun ve kişiselleştirilmiş yemek önerileri alın.
+                            </p>
+                            <a href="{% url 'register' %}" class="btn btn-primary">
+                                <i class="bi bi-arrow-right"></i> Kayıt Ol
+                            </a>
                         </div>
                     </div>
                 </div>
 
-                <!-- Özellikler -->
-                <div class="row mt-5">
-                    <div class="col-12">
-                        <h3 class="text-center mb-4">Özellikler</h3>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="text-center">
-                            <i class="bi bi-calculator display-4 text-primary"></i>
-                            <h5>Kalori Hesaplama</h5>
-                            <p>Yaş, kilo, boy ve aktivite seviyenize göre günlük kalori ihtiyacınızı hesaplayın.</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="text-center">
-                            <i class="bi bi-lightbulb display-4 text-warning"></i>
-                            <h5>Akıllı Öneriler</h5>
-                            <p>Kişisel bilgilerinize göre özelleştirilmiş yemek önerileri alın.</p>
-                        </div>
-                    </div>
-                    <div class="col-md-4 mb-3">
-                        <div class="text-center">
-                            <i class="bi bi-graph-up display-4 text-success"></i>
-                            <h5>İlerleme Takibi</h5>
-                            <p>Günlük yemek ve egzersiz kayıtlarınızı takip edin ve hedeflerinize ulaşın.</p>
+                <div class="col-md-6 mb-4">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <i class="bi bi-box-arrow-in-right display-4 text-success"></i>
+                            <h5 class="card-title mt-3">Zaten Üye misiniz?</h5>
+                            <p class="card-text">Hesabınıza giriş yapın ve diyet takibinize devam edin.</p>
+                            <a href="{% url 'login' %}" class="btn btn-success">
+                                <i class="bi bi-arrow-right"></i> Giriş Yap
+                            </a>
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Özellikler -->
+            <div class="row mt-5">
+                <div class="col-12">
+                    <h3 class="text-center mb-4">Özellikler</h3>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="text-center">
+                        <i class="bi bi-calculator display-4 text-primary"></i>
+                        <h5>Kalori Hesaplama</h5>
+                        <p>Yaş, kilo, boy ve aktivite seviyenize göre günlük kalori ihtiyacınızı hesaplayın.</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="text-center">
+                        <i class="bi bi-lightbulb display-4 text-warning"></i>
+                        <h5>Akıllı Öneriler</h5>
+                        <p>Kişisel bilgilerinize göre özelleştirilmiş yemek önerileri alın.</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="text-center">
+                        <i class="bi bi-graph-up display-4 text-success"></i>
+                        <h5>İlerleme Takibi</h5>
+                        <p>Günlük yemek ve egzersiz kayıtlarınızı takip edin ve hedeflerinize ulaşın.</p>
+                    </div>
+                </div>
+            </div>
             {% endif %}
         </div>
     </div>
